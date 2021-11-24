@@ -3,7 +3,13 @@ const path = require("path");
 const http = require("http");
 const socketio = require("socket.io");
 const Filter = require("bad-words");
-const moment = require("moment")
+const moment = require("moment");
+const {
+  addUser,
+  removeUser,
+  getUser,
+  getUsersInRoom,
+} = require("./utils/users");
 
 const app = express();
 const server = http.createServer(app);
@@ -21,16 +27,33 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("New websocket connection.");
+  socket.on("join", ({ username, room }, callBack) => {
+    const { user, error } = addUser({ id: socket.id, username, room });
 
-  // Emits the message only to the refering client.
-  socket.emit("welcomeMessage", "Welcome!");
+    if (error) {
+      return callBack(error);
+    }
 
-  // Broadcasting is sending message to all the clients except the refering client
-  socket.broadcast.emit("userJoin", "A new user has joined.");
+    socket.join(user.room);
+    socket.emit("welcomeMessage", "Welcome to the chat room!");
+    socket.broadcast
+      .to(user.room)
+      .emit("userJoin", `${user.username} has joined the chat`);
+    const roomUsers = getUsersInRoom(user.room);
+    io.to(user.room).emit("roomData", { room: user.room, users: roomUsers });
+    callBack();
+  });
 
   socket.on("disconnect", () => {
-    socket.broadcast.emit("userLeft", "A user left!");
+    const user = removeUser(socket.id);
+    if (user) {
+      socket.broadcast
+        .to(user.room)
+        .emit("userLeft", `${user.username} has left the chat`);
+
+      const roomUsers = getUsersInRoom(user.room);
+      io.to(user.room).emit("roomData", { room: user.room, users: roomUsers });
+    }
   });
 
   socket.on("sendMessage", (message, callBack) => {
@@ -41,10 +64,12 @@ io.on("connection", (socket) => {
     // io.emit sends message to every connected clients
     const now = new Date();
     const createdAt = moment(now.getTime()).format("h:mma");
-    io.emit("receiveMessage", {
+    const user = getUser(socket.id);
+    io.to(user.room).emit("receiveMessage", {
       message,
       createdAt,
-      senderId: socket.id
+      senderId: socket.id,
+      username: user.username,
     });
     callBack();
   });
@@ -52,7 +77,15 @@ io.on("connection", (socket) => {
   socket.on("sendLocation", (coords, callBack) => {
     coords = JSON.parse(coords);
     const location = `https://google.com/maps?q=${coords.lat},${coords.long}`;
-    io.emit("receiveLocation", location);
+    const now = new Date();
+    const createdAt = moment(now.getTime()).format("h:mma");
+    const user = getUser(socket.id);
+    io.to(user.room).emit("receiveLocation", {
+      location,
+      createdAt,
+      senderId: socket.id,
+      username: user.username,
+    });
     callBack("Location hared");
   });
 });
