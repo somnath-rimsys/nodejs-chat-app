@@ -9,6 +9,9 @@ window.onload = function () {
   const { username, room } = Qs.parse(location.search, {
     ignoreQueryPrefix: true,
   });
+  const usersModalBody = document.querySelector("#usersModal .modal-body ul");
+  var chatPanelOldScrollValue = 0;
+  var chatPanelNewScrollValue = 0;
 
   socket.emit("join", { username, room }, (error) => {
     if (error) {
@@ -22,7 +25,7 @@ window.onload = function () {
     p.classList.add("user-join");
     p.innerHTML = message;
     messageContainer.appendChild(p);
-    // autoScroll();
+    autoScroll();
   });
 
   socket.on("userJoin", (message) => {
@@ -30,7 +33,7 @@ window.onload = function () {
     p.classList.add("user-join");
     p.innerHTML = message;
     messageContainer.appendChild(p);
-    // autoScroll();
+    autoScroll();
   });
 
   socket.on("userLeft", (message) => {
@@ -38,7 +41,7 @@ window.onload = function () {
     p.classList.add("user-left");
     p.innerHTML = message;
     messageContainer.appendChild(p);
-    // autoScroll();
+    autoScroll();
   });
 
   socket.on("receiveMessage", (data) => {
@@ -52,7 +55,7 @@ window.onload = function () {
     if (data.senderId === socket.id) div.classList.add("own-message");
     else div.classList.add("client-message");
     messageContainer.appendChild(div);
-    // autoScroll();
+    autoScroll();
   });
 
   form.addEventListener("submit", (e) => {
@@ -100,7 +103,11 @@ window.onload = function () {
     if (data.senderId === socket.id) div.classList.add("own-message");
     else div.classList.add("client-message");
     messageContainer.appendChild(div);
-    // autoScroll();
+
+    autoScroll();
+
+    const $quickAccess = document.getElementById("quick-access");
+    $quickAccess.style.display = "none";
   });
 
   socket.on("roomData", ({ users, room }) => {
@@ -112,49 +119,64 @@ window.onload = function () {
       }"><span>${user.username}</span></li>`;
     });
     sidebarUsers.innerHTML = temp;
+    usersModalBody.innerHTML = temp;
+  });
+
+  document.getElementById("chat-panel").addEventListener("scroll", (e) => {
+    chatPanelNewScrollValue = e.target.scrollTop;
+    if (chatPanelNewScrollValue >= chatPanelOldScrollValue)
+      chatPanelOldScrollValue = chatPanelNewScrollValue;
   });
 
   const autoScroll = () => {
-    //Chat form
-    const chatForm = document.getElementById("chat-form");
-
-    // Chat form height
-    const chatFormHeight = chatForm.offsetHeight;
-
-    // Caht panel element
     const chatPanel = document.getElementById("chat-panel");
 
-    // Chat panel height
-    const chatPanelHeight = chatPanel.scrollHeight - chatFormHeight;
-
-    // New message element
-    const $newMessage = messageContainer.lastElementChild;
-
-    // Height of the new message
-    const newMessageStyles = getComputedStyle($newMessage);
-    const newMessageMarginBottom = parseInt(newMessageStyles.marginBottom);
-    const newMessageHeight = $newMessage.offsetHeight + newMessageMarginBottom;
-
-    // Visible Height
-    const visibleHeight = messageContainer.offsetHeight;
-
-    // Heigh of message container
-    const containerHeight = messageContainer.scrollHeight - chatFormHeight;
-
-    // How far have I scrolled
-    const scrollOffset = messageContainer.scrollTop + visibleHeight - chatFormHeight;
-
-    console.log("chatPanelHeight: ", chatPanelHeight);
-    console.log("newMessageHeight: ", newMessageHeight);
-    console.log("visibleHeight: ", visibleHeight);
-    console.log("containerHeight: ", containerHeight);
-    console.log("scrollOffset: ", scrollOffset);
-    console.log("---------------------------------------");
-
-    // if (containerHeight - newMessageHeight <= scrollOffset) {
-    //   console.log("Here")
-    //   messageContainer.scrollTop = messageContainer.scrollHeight;
-    // }
-    chatPanel.scrollTop = newMessageHeight + visibleHeight;
+    if (chatPanelNewScrollValue === chatPanelOldScrollValue) {
+      chatPanel.scrollTop = chatPanel.scrollHeight;
+    }
   };
+
+  document.getElementById("chat-panel").addEventListener("click", () => {
+    const $quickAccess = document.getElementById("quick-access");
+    $quickAccess.style.display = "none";
+  });
+  document.getElementById("sidebar").addEventListener("click", () => {
+    const $quickAccess = document.getElementById("quick-access");
+    $quickAccess.style.display = "none";
+  });
+
+  const viewUsersLi = document.getElementById("view-users");
+  const mediaQuery = window.matchMedia('(min-width: 768px)')
+  if (mediaQuery.matches) {
+    document.querySelector("#quick-access ul").removeChild(viewUsersLi);
+  }
+  window.addEventListener("resize", () => {
+    if (mediaQuery.matches) {
+      if (document.getElementById("view-users"))
+        document.querySelector("#quick-access ul").removeChild(viewUsersLi);
+    } else {
+      if (!document.getElementById("view-users"))
+        document.querySelector("#quick-access ul").appendChild(viewUsersLi);
+    }
+  });
 };
+
+function viewUsers() {
+  const usersModal = new bootstrap.Modal(
+    document.getElementById("usersModal"),
+    {
+      keyboard: false,
+    }
+  );
+  usersModal.show();
+  const $quickAccess = document.getElementById("quick-access");
+  $quickAccess.style.display = "none";
+}
+
+function toggleQuickAccess() {
+  const $quickAccess = document.getElementById("quick-access");
+  const currentVisibility = $quickAccess.style.display;
+  if (currentVisibility === "none" || currentVisibility === "")
+    $quickAccess.style.display = "block";
+  else $quickAccess.style.display = "none";
+}
