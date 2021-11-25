@@ -90,6 +90,10 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/404.html'));
+});
+
 server.listen(PORT, () => {
   console.log("App started at http://localhost:" + PORT);
 });
